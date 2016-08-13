@@ -67,7 +67,8 @@ func tumblrAction(token, tumblrId, command string) (string, string, func(*ape.Ev
 			}
 			urls := []string{}
 			url := fmt.Sprintf(
-				"http://api.tumblr.com/v2/blog/ganbaruzoi.tumblr.com/posts/photo?api_key=%s&offset=%d",
+				"http://api.tumblr.com/v2/blog/%s.tumblr.com/posts/photo?api_key=%s&offset=%d",
+				tumblrId,
 				token,
 				offset,
 			)
