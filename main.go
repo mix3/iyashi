@@ -56,6 +56,51 @@ func get(baseUrl string, param map[string]string) (*http.Response, error) {
 	return http.Get(reqUrl)
 }
 
+func tumblrAction(token, tumblrId, command string) (string, string, func(*ape.Event) error) {
+	totalPosts := 0
+	return command,
+		fmt.Sprintf("`@{{ .EventCtx.UserName }} %s` で http://%s.tumblr.com/ から画像をランダムで返すよ", command, tumblrId),
+		func(e *ape.Event) error {
+			offset := 0
+			if 0 < totalPosts {
+				offset = rand.Intn(totalPosts/20+1) * 20
+			}
+			urls := []string{}
+			url := fmt.Sprintf(
+				"http://api.tumblr.com/v2/blog/ganbaruzoi.tumblr.com/posts/photo?api_key=%s&offset=%d",
+				token,
+				offset,
+			)
+			resp, err := http.Get(url)
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+
+			var res TumblrSearchResponse
+			err = json.NewDecoder(resp.Body).Decode(&res)
+			if err != nil {
+				return fmt.Errorf("failed unmarshal json: %v", err)
+			}
+
+			totalPosts = res.Response.TotalPosts
+
+			for _, post := range res.Response.Posts {
+				for _, photo := range post.Photos {
+					urls = append(urls, photo.OriginalSize.Url)
+				}
+			}
+
+			if len(urls) == 0 {
+				return fmt.Errorf("見つからないよ(´・ω・｀)")
+			}
+
+			e.ReplyWithoutPermalink(urls[rand.Intn(len(urls))])
+
+			return nil
+		}
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -120,87 +165,21 @@ func main() {
 		return nil
 	})
 
-	zoiTotalPosts := 0
-	conn.AddAction("ぞい", "`@{{ .EventCtx.UserName }} ぞい` で http://ganbaruzoi.tumblr.com/ から画像をランダムで返すよ", func(e *ape.Event) error {
-		offset := 0
-		if 0 < zoiTotalPosts {
-			offset = rand.Intn(zoiTotalPosts/20+1) * 20
-		}
-		urls := []string{}
-		url := fmt.Sprintf(
-			"http://api.tumblr.com/v2/blog/ganbaruzoi.tumblr.com/posts/photo?api_key=%s&offset=%d",
+	conn.AddAction(
+		tumblrAction(
 			*tumblrApiToken,
-			offset,
-		)
-		resp, err := http.Get(url)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
+			"ganbaruzoi",
+			"ぞい",
+		),
+	)
 
-		var res TumblrSearchResponse
-		err = json.NewDecoder(resp.Body).Decode(&res)
-		if err != nil {
-			return fmt.Errorf("failed unmarshal json: %v", err)
-		}
-
-		zoiTotalPosts = res.Response.TotalPosts
-
-		for _, post := range res.Response.Posts {
-			for _, photo := range post.Photos {
-				urls = append(urls, photo.OriginalSize.Url)
-			}
-		}
-
-		if len(urls) == 0 {
-			return fmt.Errorf("見つからないよ(´・ω・｀)")
-		}
-
-		e.ReplyWithoutPermalink(urls[rand.Intn(len(urls))])
-
-		return nil
-	})
-
-	moeTotalPosts := 0
-	conn.AddAction("萌え", "`@{{ .EventCtx.UserName }} 萌え` で http://honobonoarc.tumblr.com/ から画像をランダムで返すよ", func(e *ape.Event) error {
-		offset := 0
-		if 0 < moeTotalPosts {
-			offset = rand.Intn(moeTotalPosts/20+1) * 20
-		}
-		urls := []string{}
-		url := fmt.Sprintf(
-			"http://api.tumblr.com/v2/blog/honobonoarc.tumblr.com/posts/photo?api_key=%s&offset=%d",
+	conn.AddAction(
+		tumblrAction(
 			*tumblrApiToken,
-			offset,
-		)
-		resp, err := http.Get(url)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-
-		var res TumblrSearchResponse
-		err = json.NewDecoder(resp.Body).Decode(&res)
-		if err != nil {
-			return fmt.Errorf("failed unmarshal json: %v", err)
-		}
-
-		moeTotalPosts = res.Response.TotalPosts
-
-		for _, post := range res.Response.Posts {
-			for _, photo := range post.Photos {
-				urls = append(urls, photo.OriginalSize.Url)
-			}
-		}
-
-		if len(urls) == 0 {
-			return fmt.Errorf("見つからないよ(´・ω・｀)")
-		}
-
-		e.ReplyWithoutPermalink(urls[rand.Intn(len(urls))])
-
-		return nil
-	})
+			"honobonoarc",
+			"萌え",
+		),
+	)
 
 	log.Println("launch bot")
 
