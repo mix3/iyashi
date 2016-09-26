@@ -56,6 +56,41 @@ func get(baseUrl string, param map[string]string) (*http.Response, error) {
 	return http.Get(reqUrl)
 }
 
+func merge(m1, m2 map[string]string, mn ...map[string]string) map[string]string {
+	ans := map[string]string{}
+	for k, v := range m1 {
+		ans[k] = v
+	}
+	for k, v := range m2 {
+		ans[k] = v
+	}
+	for _, m := range mn {
+		for k, v := range m {
+			ans[k] = v
+		}
+	}
+	return ans
+}
+
+func flickrSearch(query map[string]string) (FlickrSearchResponse, error) {
+	var res FlickrSearchResponse
+	resp, err := get(
+		"https://api.flickr.com/services/rest/",
+		query,
+	)
+	if err != nil {
+		return res, err
+	}
+	defer resp.Body.Close()
+
+	err = json.NewDecoder(resp.Body).Decode(&res)
+	if err != nil {
+		return res, err
+	}
+
+	return res, nil
+}
+
 func tumblrAction(token, tumblrId, command string) (string, string, func(*ape.Event) error) {
 	totalPosts := 0
 	return command,
@@ -124,34 +159,33 @@ func main() {
 		args = append(args, "-hentai", "-porn", "-sexy", "-fuck")
 		keyword := strings.Join(args, " ")
 
-		resp, err := get(
-			"https://api.flickr.com/services/rest/",
-			map[string]string{
-				"api_key":        *flickrApiToken,
-				"format":         "json",
-				"nojsoncallback": "1",
-				"method":         "flickr.photos.search",
-				"text":           keyword,
-				"safe_mode":      "1",
-				"media":          "photo",
-			},
-		)
+		query := map[string]string{
+			"api_key":        *flickrApiToken,
+			"format":         "json",
+			"nojsoncallback": "1",
+			"method":         "flickr.photos.search",
+			"text":           keyword,
+			"safe_mode":      "1",
+			"media":          "photo",
+		}
+
+		res1, err := flickrSearch(query)
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		page := rand.Intn(res1.Photos.Pages) + 1
 
-		var res FlickrSearchResponse
-		err = json.NewDecoder(resp.Body).Decode(&res)
+		res2, err := flickrSearch(merge(query, map[string]string{
+			"page": fmt.Sprintf("%d", page),
+		}))
 		if err != nil {
 			return err
 		}
-
-		if len(res.Photos.Photo) == 0 {
+		if len(res2.Photos.Photo) == 0 {
 			return fmt.Errorf("見つからないよ(´・ω・｀)")
 		}
 
-		photo := res.Photos.Photo[rand.Intn(len(res.Photos.Photo)+1)]
+		photo := res2.Photos.Photo[rand.Intn(len(res2.Photos.Photo))]
 
 		imgUrl := fmt.Sprintf(
 			"https://farm%d.staticflickr.com/%s/%s_%s.jpg",
